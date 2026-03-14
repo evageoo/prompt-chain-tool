@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 export default async function PromptChainTool() {
   const supabase = await createClient()
 
-  // 1. AUTHENTICATION & SECURITY GATES (Exactly like Meme Admin)
+  // 1. AUTHENTICATION GATING
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user || authError) {
@@ -19,12 +19,14 @@ export default async function PromptChainTool() {
             const supabase = await createClient()
             const { data } = await supabase.auth.signInWithOAuth({
               provider: 'google',
-              // UPDATED: Points to this app's Vercel URL
-              options: { redirectTo: `https://prompt-chain-tool-brown.vercel.app/auth/callback` },
+              options: {
+                redirectTo: `https://prompt-chain-tool-brown.vercel.app/auth/callback`,
+                queryParams: { prompt: 'select_account' }
+              },
             })
             if (data.url) redirect(data.url)
           }}>
-            <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase">
+            <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
               SIGN IN WITH GOOGLE
             </button>
           </form>
@@ -33,7 +35,7 @@ export default async function PromptChainTool() {
     )
   }
 
-  // 2. AUTHORIZATION CHECK (Meme Admin style + Matrix Admin role)
+  // 2. AUTHORIZATION CHECK (Matrix Admin / Superadmin Only)
   const { data: profile } = await supabase.from('profiles')
     .select('is_superadmin, is_matrix_admin')
     .eq('id', user.id).single()
@@ -41,7 +43,7 @@ export default async function PromptChainTool() {
   if (!profile?.is_superadmin && !profile?.is_matrix_admin) {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen bg-black text-red-500 text-center p-6">
-        <h1 className="text-5xl font-black mb-4 uppercase">ACCESS DENIED</h1>
+        <h1 className="text-5xl font-black mb-4 uppercase italic">ACCESS DENIED</h1>
         <p className="text-slate-400 mb-8">User {user.email} is not authorized for the Matrix Terminal.</p>
         <form action={async () => {
           'use server'
@@ -49,16 +51,19 @@ export default async function PromptChainTool() {
           await supabase.auth.signOut()
           revalidatePath('/')
         }}>
-          <button className="px-8 py-3 bg-white text-black rounded-xl font-bold uppercase tracking-widest">Sign Out</button>
+          <button className="px-8 py-3 bg-white text-black rounded-xl font-bold uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">
+            SIGN OUT
+          </button>
         </form>
       </main>
     )
   }
 
-  // 3. YOUR PERFECT FUNCTIONALITY (Fetching and Actions)
+  // 3. FETCH DOMAIN DATA
   const { data: flavors } = await supabase.from('humor_flavors')
     .select('*, humor_flavor_steps(*)').order('created_at')
 
+  // 4. SERVER ACTIONS
   async function addFlavor(formData: FormData) {
     'use server'
     const supabase = await createClient()
@@ -111,17 +116,34 @@ export default async function PromptChainTool() {
     revalidatePath('/')
   }
 
-  // 4. THE UI
+  // 5. MAIN DASHBOARD UI
   return (
     <main className="min-h-screen p-10 bg-black text-white">
       <header className="mb-16 border-b border-slate-800 pb-8 flex justify-between items-end">
         <div>
           <h1 className="text-7xl font-black italic tracking-tighter uppercase">Chain_Builder</h1>
-          <p className="font-mono text-[10px] mt-4 opacity-50 text-blue-500 tracking-widest uppercase">Admin: {user.email}</p>
+          <div className="flex items-center gap-6 mt-6">
+            <div className="flex flex-col">
+              <span className="text-[8px] uppercase font-bold text-slate-500 tracking-[0.2em] mb-1">Active Session</span>
+              <p className="font-mono text-[11px] text-blue-500 uppercase">{user.email}</p>
+            </div>
+
+            {/* LOGOUT BUTTON IN HEADER */}
+            <form action={async () => {
+              'use server'
+              const supabase = await createClient()
+              await supabase.auth.signOut()
+              revalidatePath('/')
+            }}>
+              <button className="text-[10px] font-black uppercase text-slate-400 hover:text-white transition-all border border-slate-800 px-3 py-1.5 rounded-md hover:border-red-600">
+                Sign Out
+              </button>
+            </form>
+          </div>
         </div>
 
         <form action={addFlavor} className="flex gap-3">
-          <input name="name" placeholder="New Flavor Name..." className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-sm outline-none focus:border-blue-500 transition-all w-64" required />
+          <input name="name" placeholder="New Flavor Name..." className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-sm outline-none focus:border-blue-500 transition-all w-64 text-white" required />
           <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black text-xs hover:bg-blue-500 transition-colors uppercase">Create Flavor</button>
         </form>
       </header>
