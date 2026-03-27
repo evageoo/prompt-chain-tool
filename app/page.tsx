@@ -35,7 +35,7 @@ export default async function PromptChainTool() {
     )
   }
 
-  // 2. AUTHORIZATION CHECK (Matrix Admin / Superadmin Only)
+  // 2. AUTHORIZATION CHECK
   const { data: profile } = await supabase.from('profiles')
     .select('is_superadmin, is_matrix_admin')
     .eq('id', user.id).single()
@@ -59,15 +59,21 @@ export default async function PromptChainTool() {
     )
   }
 
-  // 3. FETCH DOMAIN DATA
+  // 3. FETCH DATA
   const { data: flavors } = await supabase.from('humor_flavors')
     .select('*, humor_flavor_steps(*)').order('created_at')
 
-  // 4. SERVER ACTIONS
+  // 4. UPDATED SERVER ACTIONS (Michael's Fix applied here)
   async function addFlavor(formData: FormData) {
     'use server'
     const supabase = await createClient()
-    await supabase.from('humor_flavors').insert({ name: formData.get('name') })
+    const { data: { user } } = await supabase.auth.getUser()
+
+    await supabase.from('humor_flavors').insert({
+      name: formData.get('name'),
+      created_by_user_id: user?.id,
+      modified_by_user_id: user?.id
+    })
     revalidatePath('/')
   }
 
@@ -81,20 +87,36 @@ export default async function PromptChainTool() {
   async function addStep(formData: FormData) {
     'use server'
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const flavor_id = formData.get('flavor_id')
     const { data: existing } = await supabase.from('humor_flavor_steps').select('step_order').eq('flavor_id', flavor_id)
     const nextOrder = (existing?.length || 0) + 1
-    await supabase.from('humor_flavor_steps').insert({ flavor_id, step_order: nextOrder, instruction: 'New instruction...' })
+
+    await supabase.from('humor_flavor_steps').insert({
+      flavor_id,
+      step_order: nextOrder,
+      instruction: 'New instruction...',
+      created_by_user_id: user?.id,
+      modified_by_user_id: user?.id
+    })
     revalidatePath('/')
   }
 
   async function updateStep(formData: FormData) {
     'use server'
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const id = formData.get('id')
     const instruction = formData.get('instruction') as string
     const order = Number(formData.get('order'))
-    await supabase.from('humor_flavor_steps').update({ instruction, step_order: order }).eq('id', id)
+
+    await supabase.from('humor_flavor_steps').update({
+      instruction,
+      step_order: order,
+      modified_by_user_id: user?.id
+    }).eq('id', id)
     revalidatePath('/')
   }
 
@@ -116,7 +138,6 @@ export default async function PromptChainTool() {
     revalidatePath('/')
   }
 
-  // 5. MAIN DASHBOARD UI
   return (
     <main className="min-h-screen p-10 bg-black text-white">
       <header className="mb-16 border-b border-slate-800 pb-8 flex justify-between items-end">
@@ -127,8 +148,6 @@ export default async function PromptChainTool() {
               <span className="text-[8px] uppercase font-bold text-slate-500 tracking-[0.2em] mb-1">Active Session</span>
               <p className="font-mono text-[11px] text-blue-500 uppercase">{user.email}</p>
             </div>
-
-            {/* LOGOUT BUTTON IN HEADER */}
             <form action={async () => {
               'use server'
               const supabase = await createClient()
@@ -141,7 +160,6 @@ export default async function PromptChainTool() {
             </form>
           </div>
         </div>
-
         <form action={addFlavor} className="flex gap-3">
           <input name="name" placeholder="New Flavor Name..." className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-sm outline-none focus:border-blue-500 transition-all w-64 text-white" required />
           <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black text-xs hover:bg-blue-500 transition-colors uppercase">Create Flavor</button>
@@ -179,7 +197,6 @@ export default async function PromptChainTool() {
                   </div>
                 </form>
               ))}
-
               <form action={addStep}>
                 <input type="hidden" name="flavor_id" value={flavor.id} />
                 <button className="w-full py-4 border-2 border-dashed border-slate-800 text-slate-600 font-black text-xs hover:text-blue-500 hover:border-blue-500 transition-all rounded-2xl mt-6 uppercase">
