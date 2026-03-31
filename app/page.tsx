@@ -20,7 +20,7 @@ export default async function PromptChainTool() {
             const { data } = await supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
-                redirectTo: `https://prompt-chain-tool-brown.vercel.app/auth/callback`,
+                redirectTo: `https://${process.env.VERCEL_URL}/auth/callback`,
                 queryParams: { prompt: 'select_account' }
               },
             })
@@ -59,11 +59,11 @@ export default async function PromptChainTool() {
     )
   }
 
-  // 3. FETCH DATA
+  // 3. FETCH DOMAIN DATA
   const { data: flavors } = await supabase.from('humor_flavors')
     .select('*, humor_flavor_steps(*)').order('created_at')
 
-  // 4. UPDATED SERVER ACTIONS (Michael's Fix applied here)
+  // 4. SERVER ACTIONS (Updated with Michael's Fix)
   async function addFlavor(formData: FormData) {
     'use server'
     const supabase = await createClient()
@@ -138,6 +138,7 @@ export default async function PromptChainTool() {
     revalidatePath('/')
   }
 
+  // 5. MAIN DASHBOARD UI
   return (
     <main className="min-h-screen p-10 bg-black text-white">
       <header className="mb-16 border-b border-slate-800 pb-8 flex justify-between items-end">
@@ -160,6 +161,7 @@ export default async function PromptChainTool() {
             </form>
           </div>
         </div>
+
         <form action={addFlavor} className="flex gap-3">
           <input name="name" placeholder="New Flavor Name..." className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-sm outline-none focus:border-blue-500 transition-all w-64 text-white" required />
           <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-black text-xs hover:bg-blue-500 transition-colors uppercase">Create Flavor</button>
@@ -197,6 +199,7 @@ export default async function PromptChainTool() {
                   </div>
                 </form>
               ))}
+
               <form action={addStep}>
                 <input type="hidden" name="flavor_id" value={flavor.id} />
                 <button className="w-full py-4 border-2 border-dashed border-slate-800 text-slate-600 font-black text-xs hover:text-blue-500 hover:border-blue-500 transition-all rounded-2xl mt-6 uppercase">
