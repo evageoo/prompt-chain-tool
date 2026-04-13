@@ -15,6 +15,23 @@ export default function PromptChainTool() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- AUTH ACTIONS ---
+  async function handleLogin() {
+    const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+      : 'http://localhost:3000'
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${baseUrl}/auth/callback` },
+    });
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.reload();
+  }
+
+  // --- DATA FETCHING ---
   const fetchFlavors = async () => {
     const { data } = await supabase
       .from('humor_flavors')
@@ -28,7 +45,7 @@ export default function PromptChainTool() {
     async function getData() {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) {
-        router.push('/');
+        setLoading(false);
         return;
       }
       setUser(currentUser);
@@ -39,6 +56,7 @@ export default function PromptChainTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // --- CRUD ACTIONS ---
   async function addFlavor(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -63,7 +81,7 @@ export default function PromptChainTool() {
     await supabase.from('humor_flavor_steps').insert({
       humor_flavor_id: flavorId,
       order_by: currentCount + 1,
-      llm_user_prompt: "", // Starting with empty string instead of null
+      llm_user_prompt: "",
       llm_input_type_id: 1, llm_output_type_id: 1, llm_model_id: 1, humor_flavor_step_type_id: 1,
       created_by_user_id: user?.id, modified_by_user_id: user?.id
     });
@@ -90,41 +108,71 @@ export default function PromptChainTool() {
     await fetchFlavors();
   }
 
-  if (loading) return <div className="min-h-screen bg-black text-white p-10 font-mono">LOADING_MATRIX...</div>;
+  // --- RENDER STATES ---
+  if (loading) return (
+    <div className="min-h-screen bg-black text-white p-10 font-mono flex items-center justify-center">
+      <div className="animate-pulse tracking-[0.5em] text-blue-500 uppercase italic">Syncing_With_Matrix...</div>
+    </div>
+  );
+
+  if (!user) return (
+    <div className="min-h-screen bg-black text-white p-10 font-mono flex flex-col items-center justify-center gap-6 text-center">
+      <h1 className="text-4xl font-black uppercase italic tracking-tighter text-blue-500">Access Denied</h1>
+      <p className="text-xs text-white/40 uppercase tracking-[0.3em] max-w-xs text-center">Authentication required for Matrix access</p>
+      <button onClick={handleLogin} className="mt-4 bg-white text-black px-10 py-4 rounded-full font-black uppercase text-[10px] hover:bg-blue-500 hover:text-white transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)]">Initialize_Auth_Sequence</button>
+    </div>
+  );
 
   return (
-    <main className="min-h-screen p-10 bg-black text-white font-sans">
-      <header className="mb-16 border-b border-white/10 pb-10 flex justify-between items-end">
+    <main className="min-h-screen p-10 bg-black text-white font-sans selection:bg-blue-500">
+
+      {/* HEADER SECTION */}
+      <header className="mb-16 border-b border-white/10 pb-10 flex justify-between items-start">
         <div>
           <h1 className="text-8xl font-black italic uppercase tracking-tighter leading-none">Matrix</h1>
           <p className="text-[10px] text-blue-500 font-mono mt-4 uppercase tracking-[0.3em]">Joke Engine // Admin_Chain_Builder</p>
+
+          <div className="mt-6 flex items-center gap-4">
+            <div className="text-[9px] font-mono bg-white/5 border border-white/10 px-3 py-1 rounded text-white/50 uppercase italic">
+              User: {user.email}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-[9px] font-mono text-red-500 hover:text-white uppercase tracking-widest transition-colors cursor-pointer"
+            >
+              [Terminate_Session]
+            </button>
+          </div>
         </div>
+
         <form onSubmit={addFlavor} className="flex gap-3 items-center">
-          <input name="name" placeholder="NEW_FLAVOR..." className="bg-transparent border-b border-white/20 p-2 text-xs outline-none focus:border-blue-500 text-white w-56" required />
-          <button type="submit" className="bg-white text-black px-5 py-2 rounded-full font-black uppercase text-[10px] hover:bg-blue-500 hover:text-white transition-all">Create</button>
+          <input name="name" placeholder="NEW_FLAVOR..." className="bg-transparent border-b border-white/20 p-2 text-xs outline-none focus:border-blue-500 text-white w-56 transition-all" required />
+          <button type="submit" className="bg-white text-black px-5 py-2 rounded-full font-black uppercase text-[10px] hover:bg-blue-500 hover:text-white transition-all shadow-lg">Create</button>
         </form>
       </header>
 
+      {/* FLAVORS LIST SECTION */}
       <div className="space-y-32">
         {flavors.map((flavor) => (
-          <div key={flavor.id} className="border-l-2 border-white/10 pl-10">
+          <div key={flavor.id} className="border-l-2 border-white/10 pl-10 hover:border-blue-500/50 transition-colors">
             <div className="mb-10 flex justify-between items-center">
-              <h2 className="text-6xl font-black uppercase italic text-blue-500">{flavor.description}</h2>
-              <button onClick={() => deleteFlavor(flavor.id, flavor.description)} className="text-[9px] font-mono text-white/20 border border-white/10 px-4 py-2 rounded-full hover:bg-red-600 hover:text-white transition-all">Terminate_Flavor</button>
+              <h2 className="text-6xl font-black uppercase italic text-blue-500 tracking-tighter">{flavor.description}</h2>
+              <button
+                onClick={() => deleteFlavor(flavor.id, flavor.description)}
+                className="text-[9px] font-mono text-white/20 border border-white/10 px-4 py-2 rounded-full hover:bg-red-600 hover:text-white transition-all uppercase"
+              >
+                Terminate_Flavor
+              </button>
             </div>
 
             <div className="space-y-6">
               {flavor.humor_flavor_steps?.map((step: any) => (
-                <div key={step.id} className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+                <div key={step.id} className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4 group">
                   <form onSubmit={(e) => updateStep(e, step.id)}>
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-blue-500 font-mono text-[10px] font-bold">Logic_Gate_{step.order_by}</span>
-
+                      <span className="text-blue-500 font-mono text-[10px] font-bold uppercase">Logic_Gate_{step.order_by}</span>
                       <div className="flex gap-2">
-                        <button type="submit" className="text-[9px] bg-white text-black px-4 py-1.5 rounded-full uppercase font-black hover:bg-blue-500 hover:text-white transition-all">
-                          Update_Gate
-                        </button>
-
+                        <button type="submit" className="text-[9px] bg-white text-black px-4 py-1.5 rounded-full uppercase font-black hover:bg-blue-500 hover:text-white transition-all">Update_Gate</button>
                         <button
                           type="button"
                           onClick={() => deleteStep(step.id)}
@@ -134,10 +182,9 @@ export default function PromptChainTool() {
                         </button>
                       </div>
                     </div>
-
                     <textarea
                       name="instruction"
-                      defaultValue={step.llm_user_prompt || ''} // Fallback to empty string fixes the Vercel error
+                      defaultValue={step.llm_user_prompt || ''}
                       className="bg-transparent w-full text-white/70 font-mono text-sm outline-none focus:text-white resize-none leading-relaxed"
                       rows={3}
                     />
